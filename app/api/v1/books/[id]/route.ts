@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { books } from '../../lib/data';
 import { validateBook } from '../../lib/validation';
+import logger from '../../lib/logger';
 
 export async function GET(
   request: NextRequest,
@@ -8,9 +9,11 @@ export async function GET(
 ) {
   try {
     const id = parseInt(params.id);
+    logger.info('Book GET request', { id });
     const book = books.find(b => b.id === id);
 
     if (!book) {
+      logger.warn('Book not found', { id });
       return NextResponse.json(
         {
           type: "https://example.com/not-found",
@@ -26,7 +29,8 @@ export async function GET(
         'Content-Type': 'application/json; charset=utf-8'
       }
     });
-  } catch {
+  } catch (error) {
+    logger.error('Book GET error', { error });
     return NextResponse.json(
       {
         type: "https://example.com/server-error",
@@ -44,9 +48,11 @@ export async function PUT(
 ) {
   try {
     const id = parseInt(params.id);
+    logger.info('Book PUT request', { id });
     const bookIndex = books.findIndex(b => b.id === id);
 
     if (bookIndex === -1) {
+      logger.warn('Book not found for update', { id });
       return NextResponse.json(
         {
           type: "https://example.com/not-found",
@@ -58,9 +64,11 @@ export async function PUT(
     }
 
     const data = await request.json();
+    logger.info('Book PUT data', { id, data });
 
     const validationErrors = validateBook(data, true, id);
     if (validationErrors) {
+      logger.warn('Book PUT validation failed', { id, errors: validationErrors });
       return NextResponse.json(
         {
           type: "https://example.com/validation-error",
@@ -81,13 +89,15 @@ export async function PUT(
     };
 
     books[bookIndex] = updatedBook;
+    logger.info('Book updated', { id });
 
     return NextResponse.json(updatedBook, {
       headers: {
         'Content-Type': 'application/json; charset=utf-8'
       }
     });
-  } catch {
+  } catch (error) {
+    logger.error('Book PUT error', { error });
     return NextResponse.json(
       {
         type: "https://example.com/server-error",
@@ -105,9 +115,11 @@ export async function DELETE(
 ) {
   try {
     const id = parseInt(params.id);
+    logger.info('Book DELETE request', { id });
     const bookIndex = books.findIndex(b => b.id === id);
 
     if (bookIndex === -1) {
+      logger.warn('Book not found for delete', { id });
       return NextResponse.json(
         {
           type: "https://example.com/not-found",
@@ -119,9 +131,11 @@ export async function DELETE(
     }
 
     books.splice(bookIndex, 1);
+    logger.info('Book deleted', { id });
 
     return new NextResponse(null, { status: 204 });
-  } catch {
+  } catch (error) {
+    logger.error('Book DELETE error', { error });
     return NextResponse.json(
       {
         type: "https://example.com/server-error",

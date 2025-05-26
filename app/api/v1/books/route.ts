@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { books, incrementBookId } from '../lib/data';
 import { validateBook } from '../lib/validation';
+import logger from '../lib/logger';
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    logger.info('Books GET request', { url: request.url, searchParams: Object.fromEntries(searchParams.entries()) });
     let filteredBooks = [...books];
 
     // Apply filters
@@ -28,7 +30,8 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/json; charset=utf-8'
       }
     });
-  } catch {
+  } catch (error) {
+    logger.error('Books GET error', { error });
     return NextResponse.json(
       {
         type: "https://example.com/server-error",
@@ -43,9 +46,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const data = await request.json();
-    
+    logger.info('Books POST request', { data });
     const validationErrors = validateBook(data);
     if (validationErrors) {
+      logger.warn('Books POST validation failed', { errors: validationErrors });
       return NextResponse.json(
         {
           type: "https://example.com/validation-error",
@@ -83,14 +87,15 @@ export async function POST(request: NextRequest) {
     };
 
     books.push(newBook);
-
+    logger.info('Book created', { id: newBook.id, title: newBook.title });
     return NextResponse.json(newBook, {
       status: 201,
       headers: {
         'Content-Type': 'application/json; charset=utf-8'
       }
     });
-  } catch {
+  } catch (error) {
+    logger.error('Books POST error', { error });
     return NextResponse.json(
       {
         type: "https://example.com/server-error",
