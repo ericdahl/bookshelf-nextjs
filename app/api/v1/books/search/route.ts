@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import logger from '../../lib/logger';
 
 interface OpenLibrarySearchResult {
   docs: Array<{
@@ -188,14 +189,33 @@ export async function GET(request: NextRequest) {
     openLibraryUrl.searchParams.set('offset', offset.toString());
     openLibraryUrl.searchParams.set('fields', 'key,title,author_name,isbn,publish_year,publisher,number_of_pages_median,first_sentence,cover_i');
 
+    logger.info('Outgoing OpenLibrary API call', {
+      url: openLibraryUrl.toString(),
+      query,
+      openLibraryQuery,
+      limit,
+      offset
+    });
+    const start = Date.now();
     // Make request to OpenLibrary API
     const response = await fetch(openLibraryUrl.toString(), {
       headers: {
         'User-Agent': 'Bookshelf-NextJS/1.0 (https://github.com/user/bookshelf-nextjs)'
       }
     });
+    const duration = Date.now() - start;
+    logger.info('OpenLibrary API call completed', {
+      url: openLibraryUrl.toString(),
+      status: response.status,
+      durationMs: duration
+    });
 
     if (!response.ok) {
+      logger.error('OpenLibrary API error', {
+        url: openLibraryUrl.toString(),
+        status: response.status,
+        statusText: response.statusText
+      });
       throw new Error(`OpenLibrary API error: ${response.status}`);
     }
 
@@ -216,6 +236,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
+    logger.error('Search API error', { error });
     console.error('Search API error:', error);
     return NextResponse.json(
       {
