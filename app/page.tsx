@@ -53,6 +53,14 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [draggedBook, setDraggedBook] = useState<Book | null>(null);
 
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Book[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [addLoadingId, setAddLoadingId] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -145,6 +153,52 @@ export default function Home() {
   const getBooksByStatus = (status: string) => {
     const apiStatus = reverseStatusMapping[status as keyof typeof reverseStatusMapping];
     return books.filter(book => book.status === apiStatus);
+  };
+
+  // Search handler
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    setSearchLoading(true);
+    setSearchError(null);
+    setSearchResults([]);
+    try {
+      const res = await fetch(`/api/v1/books/search?q=${encodeURIComponent(searchQuery)}&limit=10`);
+      if (!res.ok) throw new Error('Search failed');
+      const data = await res.json();
+      setSearchResults(data.results || []);
+    } catch {
+      setSearchError('Error searching books.');
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  // Add book from search result
+  const handleAddBook = async (book: Book, status: string) => {
+    setAddLoadingId(book.open_library_id ? book.open_library_id : book.title);
+    setAddError(null);
+    try {
+      const res = await fetch('/api/v1/books', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...book, status }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData?.title || 'Failed to add book');
+      }
+      const newBook = await res.json();
+      setBooks(prev => [...prev, newBook]);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setAddError(error.message || 'Error adding book.');
+      } else {
+        setAddError('Error adding book.');
+      }
+    } finally {
+      setAddLoadingId(null);
+    }
   };
 
   const BookCard = ({ book }: { book: Book }) => (
@@ -293,11 +347,107 @@ export default function Home() {
           </p>
         </header>
 
+        {/* Search Box */}
+        <div className="mb-8 max-w-2xl mx-auto">
+          <form onSubmit={handleSearch} className="flex gap-2">
+            <input
+              type="text"
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-l focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search for books by title, author, or ISBN..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              disabled={searchLoading}
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-blue-600 text-white rounded-r hover:bg-blue-700 transition-colors"
+              disabled={searchLoading}
+            >
+              {searchLoading ? 'Searching...' : 'Search'}
+            </button>
+          </form>
+          {searchError && <div className="text-red-600 mt-2">{searchError}</div>}
+        </div>
+
+        {/* Search Results */}
+        {searchResults.length > 0 && (
+          <div className="mb-10 max-w-3xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">Search Results</h2>
+              <button
+                className="text-gray-500 hover:text-gray-700 text-sm px-2 py-1 rounded border border-gray-200 bg-gray-100"
+                onClick={() => setSearchResults([])}
+                aria-label="Close search results"
+              >
+                Close
+              </button>
+            </div>
+            <div className="bg-white rounded-lg shadow overflow-x-auto">
+              <table className="min-w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Book</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pages</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {searchResults.map((book) => (
+                    <tr key={book.open_library_id || book.title} className="border-b border-gray-200">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center space-x-3">
+                          {book.cover_image_url ? (
+                            <Image
+                              src={book.cover_image_url}
+                              alt={`Cover of ${book.title}`}
+                              width={40}
+                              height={60}
+                              className="rounded shadow-sm"
+                            />
+                          ) : (
+                            <div className="w-10 h-15 bg-gray-200 rounded flex items-center justify-center">
+                              <span className="text-xs text-gray-500">📚</span>
+                            </div>
+                          )}
+                          <div>
+                            <div className="font-medium text-gray-900">{book.title}</div>
+                            <div className="text-sm text-gray-500">{book.author}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{book.publication_year || 'Unknown'}</td>
+                      <td className="px-4 py-3 text-sm text-gray-500">{book.page_count || 'Unknown'}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          {Object.entries(statusMapping).map(([status, label]) => (
+                            <button
+                              key={status}
+                              className={`px-2 py-1 rounded text-xs font-medium transition-colors ${addLoadingId === (book.open_library_id || book.title) ? 'opacity-50 cursor-not-allowed' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
+                              onClick={() => handleAddBook(book, status)}
+                              disabled={addLoadingId === (book.open_library_id || book.title)}
+                            >
+                              {label}
+                            </button>
+                          ))}
+                        </div>
+                        {addError && addLoadingId === (book.open_library_id || book.title) && (
+                          <div className="text-xs text-red-600 mt-1">{addError}</div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Main Bookshelves */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {Object.keys(statusMapping).map((status) => {
             const shelfTitle = statusMapping[status as keyof typeof statusMapping];
             const shelfBooks = getBooksByStatus(shelfTitle);
-            
             return (
               <Bookshelf
                 key={status}
