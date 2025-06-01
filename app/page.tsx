@@ -19,7 +19,7 @@ interface Book {
   status: 'planning' | 'reading' | 'finished' | 'on_hold' | 'dropped';
   rating: number | null;
   comments: string | null;
-  book_type: 'hardcover' | 'paperback' | 'kindle' | 'audiobook' | null;
+  book_type: 'book' | 'audiobook' | null;
   date_added: string;
   date_started: string | null;
   date_finished: string | null;
@@ -226,7 +226,7 @@ interface EditBookModalProps {
 const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, onSave }) => {
   const [rating, setRating] = useState<number | null>(null);
   const [comments, setComments] = useState<string | null>(null);
-  const [bookType, setBookType] = useState<'hardcover' | 'paperback' | 'kindle' | 'audiobook' | null>(null);
+  const [bookType, setBookType] = useState<'book' | 'audiobook' | null>(null);
 
   useEffect(() => {
     if (book) {
@@ -254,21 +254,24 @@ const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, on
         
         {/* Rating */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
-          <div className="flex">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                onClick={() => setRating(star)}
-                className={`text-3xl ${star <= (rating || 0) ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-500 transition-colors`}
-              >
-                ★
-              </button>
-            ))}
+          <label className="block text-sm font-medium text-gray-700 mb-1">Rating (1-10)</label>
+          <div className="flex flex-wrap items-center">
+            {[...Array(10)].map((_, i) => {
+              const starValue = i + 1;
+              return (
+                <button
+                  key={starValue}
+                  onClick={() => setRating(starValue)}
+                  className={`text-2xl p-1 ${starValue <= (rating || 0) ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-500 transition-colors`}
+                >
+                  ★
+                </button>
+              );
+            })}
             {rating && (
               <button 
                 onClick={() => setRating(null)} 
-                className="ml-2 text-xs text-gray-500 hover:text-gray-700"
+                className="ml-2 mt-1 text-xs text-gray-500 hover:text-gray-700"
               >
                 Clear
               </button>
@@ -298,9 +301,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, on
             onChange={(e) => setBookType(e.target.value as Book['book_type'])}
           >
             <option value="">Select type</option>
-            <option value="hardcover">Hardcover</option>
-            <option value="paperback">Paperback</option>
-            <option value="kindle">Kindle</option>
+            <option value="book">Book</option>
             <option value="audiobook">Audiobook</option>
           </select>
         </div>

@@ -25,7 +25,7 @@ export interface Book {
   status: 'planning' | 'reading' | 'finished' | 'on_hold' | 'dropped';
   rating: number | null;
   comments: string | null;
-  book_type: 'hardcover' | 'paperback' | 'kindle' | 'audiobook' | null;
+  book_type: 'book' | 'audiobook' | null;
   date_added: string;
   date_started: string | null;
   date_finished: string | null;

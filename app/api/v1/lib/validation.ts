@@ -66,13 +66,13 @@ export function validateBook(data: Record<string, unknown>, isUpdate = false, cu
   }
 
   if (data.rating !== undefined && data.rating !== null) {
-    if (!Number.isInteger(data.rating) || data.rating < 1 || data.rating > 5) {
-      errors.rating = ["must be an integer between 1 and 5"];
+    if (!Number.isInteger(data.rating) || data.rating < 1 || data.rating > 10) {
+      errors.rating = ["must be an integer between 1 and 10"];
     }
   }
 
   if (data.book_type !== undefined && data.book_type !== null) {
-    const validTypes = ['hardcover', 'paperback', 'kindle', 'audiobook'];
+    const validTypes = ['book', 'audiobook'];
     if (!validTypes.includes(data.book_type)) {
       errors.book_type = [`must be one of: ${validTypes.join(', ')}`];
     }
