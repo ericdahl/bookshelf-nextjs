@@ -53,9 +53,10 @@ interface BookCardProps {
   seriesName: string | null;
   onDragStartHandler: (e: React.DragEvent, book: Book) => void;
   onDeleteHandler: (bookId: number) => void;
+  onEditHandler: (book: Book) => void;
 }
 
-const ActualBookCard: React.FC<BookCardProps> = ({ book, seriesName, onDragStartHandler, onDeleteHandler }) => (
+const ActualBookCard: React.FC<BookCardProps> = ({ book, seriesName, onDragStartHandler, onDeleteHandler, onEditHandler }) => (
   <tr
     draggable
     onDragStart={(e) => onDragStartHandler(e, book)}
@@ -77,7 +78,12 @@ const ActualBookCard: React.FC<BookCardProps> = ({ book, seriesName, onDragStart
           </div>
         )}
         <div>
-          <div className="font-medium text-gray-900">{book.title}</div>
+          <div 
+            className="font-medium text-gray-900 hover:text-blue-600 cursor-pointer"
+            onClick={() => onEditHandler(book)}
+          >
+            {book.title}
+          </div>
           <div className="text-sm text-gray-500">{book.author}</div>
           {seriesName && (
             <div className="text-xs text-blue-600">
@@ -131,6 +137,7 @@ interface BookshelfProps {
   onBookDragStartHandler: (e: React.DragEvent, book: Book) => void;
   onBookDeleteHandler: (bookId: number) => void;
   getSeriesNameForBook: (seriesId: number | null) => string | null;
+  onEditHandler: (book: Book) => void;
 }
 
 const ActualBookshelf: React.FC<BookshelfProps> = ({
@@ -141,6 +148,7 @@ const ActualBookshelf: React.FC<BookshelfProps> = ({
   onBookDragStartHandler,
   onBookDeleteHandler,
   getSeriesNameForBook,
+  onEditHandler,
 }) => (
   <div
     className="bg-white rounded-lg shadow-md overflow-hidden"
@@ -195,6 +203,7 @@ const ActualBookshelf: React.FC<BookshelfProps> = ({
                   seriesName={getSeriesNameForBook(book.series_id)}
                   onDragStartHandler={onBookDragStartHandler}
                   onDeleteHandler={onBookDeleteHandler}
+                  onEditHandler={onEditHandler}
                 />
               ))}
             </tbody>
@@ -205,6 +214,115 @@ const ActualBookshelf: React.FC<BookshelfProps> = ({
   </div>
 );
 const MemoizedBookshelf = React.memo(ActualBookshelf);
+
+// Edit Book Modal Component
+interface EditBookModalProps {
+  book: Book | null;
+  isOpen: boolean;
+  onClose: () => void;
+  onSave: (updatedBook: Book) => void;
+}
+
+const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, onSave }) => {
+  const [rating, setRating] = useState<number | null>(null);
+  const [comments, setComments] = useState<string | null>(null);
+  const [bookType, setBookType] = useState<'hardcover' | 'paperback' | 'kindle' | 'audiobook' | null>(null);
+
+  useEffect(() => {
+    if (book) {
+      setRating(book.rating);
+      setComments(book.comments);
+      setBookType(book.book_type);
+    }
+  }, [book]);
+
+  if (!isOpen || !book) return null;
+
+  const handleSave = () => {
+    onSave({
+      ...book,
+      rating,
+      comments,
+      book_type: bookType,
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
+        <h2 className="text-2xl font-semibold mb-4 text-gray-800">Edit: {book.title}</h2>
+        
+        {/* Rating */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Rating</label>
+          <div className="flex">
+            {[1, 2, 3, 4, 5].map((star) => (
+              <button
+                key={star}
+                onClick={() => setRating(star)}
+                className={`text-3xl ${star <= (rating || 0) ? 'text-yellow-400' : 'text-gray-300'} hover:text-yellow-500 transition-colors`}
+              >
+                ★
+              </button>
+            ))}
+            {rating && (
+              <button 
+                onClick={() => setRating(null)} 
+                className="ml-2 text-xs text-gray-500 hover:text-gray-700"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Comments */}
+        <div className="mb-4">
+          <label htmlFor="comments" className="block text-sm font-medium text-gray-700 mb-1">Comments</label>
+          <textarea
+            id="comments"
+            rows={3}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            value={comments || ''}
+            onChange={(e) => setComments(e.target.value)}
+            placeholder="Add your thoughts..."
+          />
+        </div>
+
+        {/* Book Type */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-gray-700 mb-1">Book Type</label>
+          <select
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            value={bookType || ''}
+            onChange={(e) => setBookType(e.target.value as Book['book_type'])}
+          >
+            <option value="">Select type</option>
+            <option value="hardcover">Hardcover</option>
+            <option value="paperback">Paperback</option>
+            <option value="kindle">Kindle</option>
+            <option value="audiobook">Audiobook</option>
+          </select>
+        </div>
+        
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function Home() {
   const [books, setBooks] = useState<Book[]>([]);
@@ -219,6 +337,10 @@ export default function Home() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [addLoadingId, setAddLoadingId] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+
+  // State for edit modal
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     fetchData();
@@ -366,6 +488,46 @@ export default function Home() {
     }
   };
 
+  const handleEditBook = (book: Book) => {
+    setEditingBook(book);
+    setShowEditModal(true);
+  };
+
+  const handleCloseEditModal = () => {
+    setEditingBook(null);
+    setShowEditModal(false);
+  };
+
+  const handleSaveBookChanges = async (updatedBook: Book) => {
+    if (!editingBook) return;
+
+    try {
+      const response = await fetch(`/api/v1/books/${editingBook.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updatedBook),
+      });
+
+      if (response.ok) {
+        const savedBook = await response.json();
+        setBooks(prevBooks =>
+          prevBooks.map(book =>
+            book.id === savedBook.id ? savedBook : book
+          )
+        );
+        handleCloseEditModal();
+      } else {
+        console.error('Failed to save book changes');
+        // You might want to show an error to the user here
+      }
+    } catch (error) {
+      console.error('Error saving book changes:', error);
+       // You might want to show an error to the user here
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -500,6 +662,7 @@ export default function Home() {
                 onBookDragStartHandler={memoizedHandleDragStart}
                 onBookDeleteHandler={memoizedDeleteBook}
                 getSeriesNameForBook={memoizedGetSeriesName}
+                onEditHandler={handleEditBook}
               />
             );
           })}
@@ -537,6 +700,16 @@ export default function Home() {
           </p>
         </footer>
       </div>
+
+      {/* Edit Book Modal */}
+      {showEditModal && editingBook && (
+        <EditBookModal
+          book={editingBook}
+          isOpen={showEditModal}
+          onClose={handleCloseEditModal}
+          onSave={handleSaveBookChanges}
+        />
+      )}
     </div>
   );
 }
