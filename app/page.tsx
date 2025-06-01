@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Image from "next/image";
 
 interface Book {
@@ -47,6 +47,165 @@ const reverseStatusMapping = {
   'Read': 'finished'
 } as const;
 
+// Extracted and Memoized BookCard Component
+interface BookCardProps {
+  book: Book;
+  seriesName: string | null;
+  onDragStartHandler: (e: React.DragEvent, book: Book) => void;
+  onDeleteHandler: (bookId: number) => void;
+}
+
+const ActualBookCard: React.FC<BookCardProps> = ({ book, seriesName, onDragStartHandler, onDeleteHandler }) => (
+  <tr
+    draggable
+    onDragStart={(e) => onDragStartHandler(e, book)}
+    className="bg-white hover:bg-gray-50 border-b border-gray-200 cursor-move transition-colors duration-200"
+  >
+    <td className="px-4 py-3">
+      <div className="flex items-center space-x-3">
+        {book.cover_image_url ? (
+          <Image
+            src={book.cover_image_url}
+            alt={`Cover of ${book.title}`}
+            width={40}
+            height={60}
+            className="rounded shadow-sm"
+          />
+        ) : (
+          <div className="w-10 h-[60px] bg-gray-200 rounded flex items-center justify-center">
+            <span className="text-xs text-gray-500">📚</span>
+          </div>
+        )}
+        <div>
+          <div className="font-medium text-gray-900">{book.title}</div>
+          <div className="text-sm text-gray-500">{book.author}</div>
+          {seriesName && (
+            <div className="text-xs text-blue-600">
+              {seriesName}
+            </div>
+          )}
+        </div>
+      </div>
+    </td>
+    <td className="px-4 py-3 text-sm text-gray-500">
+      {book.publication_year || 'Unknown'}
+    </td>
+    <td className="px-4 py-3 text-sm text-gray-500">
+      {book.page_count || 'Unknown'}
+    </td>
+    <td className="px-4 py-3">
+      {book.rating && (
+        <div className="flex items-center">
+          {[...Array(5)].map((_, i) => (
+            <span
+              key={i}
+              className={`text-sm ${
+                i < book.rating! ? 'text-yellow-400' : 'text-gray-300'
+              }`}
+            >
+              ★
+            </span>
+          ))}
+        </div>
+      )}
+    </td>
+    <td className="px-4 py-3">
+      <button
+        onClick={() => onDeleteHandler(book.id)}
+        className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors duration-200"
+      >
+        Remove
+      </button>
+    </td>
+  </tr>
+);
+const MemoizedBookCard = React.memo(ActualBookCard);
+
+// Extracted and Memoized Bookshelf Component
+interface BookshelfProps {
+  title: string;
+  shelfBooks: Book[];
+  onDragOverHandler: (e: React.DragEvent) => void;
+  onDropHandler: (e: React.DragEvent, newShelfTitle: string) => void;
+  // Props for BookCard
+  onBookDragStartHandler: (e: React.DragEvent, book: Book) => void;
+  onBookDeleteHandler: (bookId: number) => void;
+  getSeriesNameForBook: (seriesId: number | null) => string | null;
+}
+
+const ActualBookshelf: React.FC<BookshelfProps> = ({
+  title,
+  shelfBooks,
+  onDragOverHandler,
+  onDropHandler,
+  onBookDragStartHandler,
+  onBookDeleteHandler,
+  getSeriesNameForBook,
+}) => (
+  <div
+    className="bg-white rounded-lg shadow-md overflow-hidden"
+    onDragOver={onDragOverHandler}
+    onDrop={(e) => onDropHandler(e, title)}
+  >
+    <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+      <h2 className="text-xl font-semibold text-white flex items-center justify-between">
+        {title}
+        <span className="bg-blue-500 text-white text-sm px-2 py-1 rounded-full">
+          {shelfBooks.length}
+        </span>
+      </h2>
+    </div>
+    
+    <div className="min-h-[200px]">
+      {shelfBooks.length === 0 ? (
+        <div className="flex items-center justify-center h-48 text-gray-500">
+          <div className="text-center">
+            <div className="text-4xl mb-2">📚</div>
+            <p>No books in this shelf</p>
+            <p className="text-sm">Drag books here to add them</p>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Book
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Year
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Pages
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Rating
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shelfBooks.map((book) => (
+                <MemoizedBookCard 
+                  key={book.id} 
+                  book={book}
+                  seriesName={getSeriesNameForBook(book.series_id)}
+                  onDragStartHandler={onBookDragStartHandler}
+                  onDeleteHandler={onBookDeleteHandler}
+                />
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  </div>
+);
+const MemoizedBookshelf = React.memo(ActualBookshelf);
+
 export default function Home() {
   const [books, setBooks] = useState<Book[]>([]);
   const [series, setSeries] = useState<Series[]>([]);
@@ -84,7 +243,7 @@ export default function Home() {
     }
   };
 
-  const updateBookStatus = async (bookId: number, newStatus: string) => {
+  const memoizedUpdateBookStatus = useCallback(async (bookId: number, newStatus: string) => {
     try {
       const response = await fetch(`/api/v1/books/${bookId}`, {
         method: 'PUT',
@@ -96,16 +255,18 @@ export default function Home() {
 
       if (response.ok) {
         const updatedBook = await response.json();
-        setBooks(books.map(book => 
-          book.id === bookId ? updatedBook : book
-        ));
+        setBooks(prevBooks => 
+          prevBooks.map(book => 
+            book.id === bookId ? updatedBook : book
+          )
+        );
       }
     } catch (error) {
       console.error('Error updating book status:', error);
     }
-  };
+  }, []);
 
-  const deleteBook = async (bookId: number) => {
+  const memoizedDeleteBook = useCallback(async (bookId: number) => {
     if (!confirm('Are you sure you want to delete this book?')) {
       return;
     }
@@ -116,39 +277,43 @@ export default function Home() {
       });
 
       if (response.ok) {
-        setBooks(books.filter(book => book.id !== bookId));
+        setBooks(prevBooks => prevBooks.filter(book => book.id !== bookId));
       }
     } catch (error) {
       console.error('Error deleting book:', error);
     }
-  };
+  }, []);
 
-  const handleDragStart = (e: React.DragEvent, book: Book) => {
+  const memoizedHandleDragStart = useCallback((e: React.DragEvent, book: Book) => {
     setDraggedBook(book);
-    e.dataTransfer.effectAllowed = 'move';
-  };
+    if (e.dataTransfer) {
+      e.dataTransfer.effectAllowed = 'move';
+    }
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const memoizedHandleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-  };
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'move';
+    }
+  }, []);
 
-  const handleDrop = (e: React.DragEvent, newShelf: string) => {
+  const memoizedHandleDrop = useCallback((e: React.DragEvent, newShelf: string) => {
     e.preventDefault();
     if (draggedBook) {
       const newStatus = reverseStatusMapping[newShelf as keyof typeof reverseStatusMapping];
       if (newStatus && draggedBook.status !== newStatus) {
-        updateBookStatus(draggedBook.id, newStatus);
+        memoizedUpdateBookStatus(draggedBook.id, newStatus);
       }
       setDraggedBook(null);
     }
-  };
+  }, [draggedBook, memoizedUpdateBookStatus]);
 
-  const getSeriesName = (seriesId: number | null) => {
+  const memoizedGetSeriesName = useCallback((seriesId: number | null) => {
     if (!seriesId) return null;
     const seriesItem = series.find(s => s.id === seriesId);
     return seriesItem?.name || null;
-  };
+  }, [series]);
 
   const getBooksByStatus = (status: string) => {
     const apiStatus = reverseStatusMapping[status as keyof typeof reverseStatusMapping];
@@ -200,129 +365,6 @@ export default function Home() {
       setAddLoadingId(null);
     }
   };
-
-  const BookCard = ({ book }: { book: Book }) => (
-    <tr
-      draggable
-      onDragStart={(e) => handleDragStart(e, book)}
-      className="bg-white hover:bg-gray-50 border-b border-gray-200 cursor-move transition-colors duration-200"
-    >
-      <td className="px-4 py-3">
-        <div className="flex items-center space-x-3">
-          {book.cover_image_url ? (
-            <Image
-              src={book.cover_image_url}
-              alt={`Cover of ${book.title}`}
-              width={40}
-              height={60}
-              className="rounded shadow-sm"
-            />
-          ) : (
-            <div className="w-10 h-15 bg-gray-200 rounded flex items-center justify-center">
-              <span className="text-xs text-gray-500">📚</span>
-            </div>
-          )}
-          <div>
-            <div className="font-medium text-gray-900">{book.title}</div>
-            <div className="text-sm text-gray-500">{book.author}</div>
-            {getSeriesName(book.series_id) && (
-              <div className="text-xs text-blue-600">
-                {getSeriesName(book.series_id)}
-              </div>
-            )}
-          </div>
-        </div>
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-500">
-        {book.publication_year || 'Unknown'}
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-500">
-        {book.page_count || 'Unknown'}
-      </td>
-      <td className="px-4 py-3">
-        {book.rating && (
-          <div className="flex items-center">
-            {[...Array(5)].map((_, i) => (
-              <span
-                key={i}
-                className={`text-sm ${
-                  i < book.rating! ? 'text-yellow-400' : 'text-gray-300'
-                }`}
-              >
-                ★
-              </span>
-            ))}
-          </div>
-        )}
-      </td>
-      <td className="px-4 py-3">
-        <button
-          onClick={() => deleteBook(book.id)}
-          className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors duration-200"
-        >
-          Remove
-        </button>
-      </td>
-    </tr>
-  );
-
-  const Bookshelf = ({ title, books: shelfBooks }: { title: string; books: Book[] }) => (
-    <div
-      className="bg-white rounded-lg shadow-md overflow-hidden"
-      onDragOver={handleDragOver}
-      onDrop={(e) => handleDrop(e, title)}
-    >
-      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-        <h2 className="text-xl font-semibold text-white flex items-center justify-between">
-          {title}
-          <span className="bg-blue-500 text-white text-sm px-2 py-1 rounded-full">
-            {shelfBooks.length}
-          </span>
-        </h2>
-      </div>
-      
-      <div className="min-h-[200px]">
-        {shelfBooks.length === 0 ? (
-          <div className="flex items-center justify-center h-48 text-gray-500">
-            <div className="text-center">
-              <div className="text-4xl mb-2">📚</div>
-              <p>No books in this shelf</p>
-              <p className="text-sm">Drag books here to add them</p>
-            </div>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Book
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Year
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Pages
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rating
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {shelfBooks.map((book) => (
-                  <BookCard key={book.id} book={book} />
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 
   if (loading) {
     return (
@@ -449,10 +491,15 @@ export default function Home() {
             const shelfTitle = statusMapping[status as keyof typeof statusMapping];
             const shelfBooks = getBooksByStatus(shelfTitle);
             return (
-              <Bookshelf
+              <MemoizedBookshelf
                 key={status}
                 title={shelfTitle}
-                books={shelfBooks}
+                shelfBooks={shelfBooks}
+                onDragOverHandler={memoizedHandleDragOver}
+                onDropHandler={memoizedHandleDrop}
+                onBookDragStartHandler={memoizedHandleDragStart}
+                onBookDeleteHandler={memoizedDeleteBook}
+                getSeriesNameForBook={memoizedGetSeriesName}
               />
             );
           })}
