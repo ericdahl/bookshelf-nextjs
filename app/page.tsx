@@ -183,7 +183,7 @@ const BookshelfTable: React.FC<BookshelfTableProps> = ({ title, books, onDeleteH
                   <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4">{book.author}</td>
                   <td className="px-4 py-3 text-sm text-blue-600 align-top pt-4">{getSeriesNameForBook(book.series_id) || '—'}</td>
                   <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4">{book.publication_year || '—'}</td>
-                  <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4 font-medium">{book.rating !== null ? `${book.rating} / 10` : '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4 font-medium">{book.rating !== null ? book.rating : '—'}</td>
                   <td className="px-4 py-3 align-top pt-4">
                     <button
                       onClick={() => onDeleteHandler(book.id)}
