@@ -47,173 +47,160 @@ const reverseStatusMapping = {
   'Read': 'finished'
 } as const;
 
-// Extracted and Memoized BookCard Component
-interface BookCardProps {
-  book: Book;
-  seriesName: string | null;
-  onDragStartHandler: (e: React.DragEvent, book: Book) => void;
+// New component: BookshelfTable
+type SortableColumn = 'title' | 'author' | 'seriesName' | 'publication_year' | 'rating';
+
+interface BookshelfTableProps {
+  title: string;
+  books: Book[];
   onDeleteHandler: (bookId: number) => void;
   onEditHandler: (book: Book) => void;
-}
-
-const ActualBookCard: React.FC<BookCardProps> = ({ book, seriesName, onDragStartHandler, onDeleteHandler, onEditHandler }) => (
-  <tr
-    draggable
-    onDragStart={(e) => onDragStartHandler(e, book)}
-    className="bg-white hover:bg-gray-50 border-b border-gray-200 cursor-move transition-colors duration-200"
-  >
-    <td className="px-4 py-3">
-      <div className="flex items-center space-x-3">
-        {book.cover_image_url ? (
-          <Image
-            src={book.cover_image_url}
-            alt={`Cover of ${book.title}`}
-            width={40}
-            height={60}
-            className="rounded shadow-sm"
-          />
-        ) : (
-          <div className="w-10 h-[60px] bg-gray-200 rounded flex items-center justify-center">
-            <span className="text-xs text-gray-500">📚</span>
-          </div>
-        )}
-        <div>
-          <div 
-            className="font-medium text-gray-900 hover:text-blue-600 cursor-pointer"
-            onClick={() => onEditHandler(book)}
-          >
-            {book.title}
-          </div>
-          <div className="text-sm text-gray-500">{book.author}</div>
-          {seriesName && (
-            <div className="text-xs text-blue-600">
-              {seriesName}
-            </div>
-          )}
-        </div>
-      </div>
-    </td>
-    <td className="px-4 py-3 text-sm text-gray-500">
-      {book.publication_year || 'Unknown'}
-    </td>
-    <td className="px-4 py-3 text-sm text-gray-500">
-      {book.page_count || 'Unknown'}
-    </td>
-    <td className="px-4 py-3">
-      {book.rating && (
-        <div className="flex items-center">
-          {[...Array(5)].map((_, i) => (
-            <span
-              key={i}
-              className={`text-sm ${
-                i < book.rating! ? 'text-yellow-400' : 'text-gray-300'
-              }`}
-            >
-              ★
-            </span>
-          ))}
-        </div>
-      )}
-    </td>
-    <td className="px-4 py-3">
-      <button
-        onClick={() => onDeleteHandler(book.id)}
-        className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors duration-200"
-      >
-        Remove
-      </button>
-    </td>
-  </tr>
-);
-const MemoizedBookCard = React.memo(ActualBookCard);
-
-// Extracted and Memoized Bookshelf Component
-interface BookshelfProps {
-  title: string;
-  shelfBooks: Book[];
-  onDragOverHandler: (e: React.DragEvent) => void;
-  onDropHandler: (e: React.DragEvent, newShelfTitle: string) => void;
-  // Props for BookCard
-  onBookDragStartHandler: (e: React.DragEvent, book: Book) => void;
-  onBookDeleteHandler: (bookId: number) => void;
   getSeriesNameForBook: (seriesId: number | null) => string | null;
-  onEditHandler: (book: Book) => void;
 }
 
-const ActualBookshelf: React.FC<BookshelfProps> = ({
-  title,
-  shelfBooks,
-  onDragOverHandler,
-  onDropHandler,
-  onBookDragStartHandler,
-  onBookDeleteHandler,
-  getSeriesNameForBook,
-  onEditHandler,
-}) => (
-  <div
-    className="bg-white rounded-lg shadow-md overflow-hidden"
-    onDragOver={onDragOverHandler}
-    onDrop={(e) => onDropHandler(e, title)}
-  >
-    <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-      <h2 className="text-xl font-semibold text-white flex items-center justify-between">
-        {title}
-        <span className="bg-blue-500 text-white text-sm px-2 py-1 rounded-full">
-          {shelfBooks.length}
-        </span>
-      </h2>
-    </div>
+const BookshelfTable: React.FC<BookshelfTableProps> = ({ title, books, onDeleteHandler, onEditHandler, getSeriesNameForBook }) => {
+  const [sortConfig, setSortConfig] = useState<{ key: SortableColumn; direction: 'ascending' | 'descending' } | null>({ key: 'title', direction: 'ascending' });
+
+  const sortedBooks = React.useMemo(() => {
+    const sortableItems = [...books];
+    if (sortConfig !== null) {
+      sortableItems.sort((a, b) => {
+        const { key, direction } = sortConfig;
+        let aValue: string | number | null | undefined, bValue: string | number | null | undefined;
+
+        if (key === 'seriesName') {
+          aValue = getSeriesNameForBook(a.series_id);
+          bValue = getSeriesNameForBook(b.series_id);
+        } else {
+          aValue = a[key as keyof Book];
+          bValue = b[key as keyof Book];
+        }
+
+        if (aValue == null) return 1;
+        if (bValue == null) return -1;
+        
+        const dir = direction === 'ascending' ? 1 : -1;
+
+        if (typeof aValue === 'string' && typeof bValue === 'string') {
+          return aValue.localeCompare(bValue) * dir;
+        }
+
+        if (aValue < bValue) return -1 * dir;
+        if (aValue > bValue) return 1 * dir;
+        
+        return 0;
+      });
+    }
+    return sortableItems;
+  }, [books, sortConfig, getSeriesNameForBook]);
+
+  const requestSort = (key: SortableColumn) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'ascending') {
+      direction = 'descending';
+    }
+    setSortConfig({ key, direction });
+  };
+  
+  const getSortIndicator = (key: SortableColumn) => {
+    if (!sortConfig || sortConfig.key !== key) {
+      return <span className="text-gray-400"> ↕</span>;
+    }
+    return sortConfig.direction === 'ascending' ? ' ↑' : ' ↓';
+  }
+
+  const columns: { key: SortableColumn, label: string }[] = [
+    { key: 'title', label: 'Title' },
+    { key: 'author', label: 'Author' },
+    { key: 'seriesName', label: 'Series' },
+    { key: 'publication_year', label: 'Year' },
+    { key: 'rating', label: 'Rating' },
+  ];
+
+  return (
+    <div className="bg-white rounded-lg shadow-md overflow-hidden">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
+        <h2 className="text-2xl font-semibold text-white flex items-center justify-between">
+          {title}
+          <span className="bg-blue-500 text-white text-sm font-medium px-2.5 py-1 rounded-full">
+            {books.length}
+          </span>
+        </h2>
+      </div>
     
-    <div className="min-h-[200px]">
-      {shelfBooks.length === 0 ? (
-        <div className="flex items-center justify-center h-48 text-gray-500">
-          <div className="text-center">
-            <div className="text-4xl mb-2">📚</div>
-            <p>No books in this shelf</p>
-            <p className="text-sm">Drag books here to add them</p>
+      <div className="overflow-x-auto">
+        {books.length === 0 ? (
+          <div className="flex items-center justify-center h-32 text-gray-500">
+            <p>No books on this shelf.</p>
           </div>
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
+        ) : (
           <table className="min-w-full">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Book
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Year
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Pages
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Rating
-                </th>
+                {columns.map(col => (
+                  <th 
+                    key={col.key} 
+                    className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                    onClick={() => requestSort(col.key)}
+                  >
+                    {col.label}
+                    {getSortIndicator(col.key)}
+                  </th>
+                ))}
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {shelfBooks.map((book) => (
-                <MemoizedBookCard 
-                  key={book.id} 
-                  book={book}
-                  seriesName={getSeriesNameForBook(book.series_id)}
-                  onDragStartHandler={onBookDragStartHandler}
-                  onDeleteHandler={onBookDeleteHandler}
-                  onEditHandler={onEditHandler}
-                />
+            <tbody className="divide-y divide-gray-200">
+              {sortedBooks.map((book) => (
+                <tr key={book.id} className="hover:bg-gray-50 transition-colors duration-200">
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex items-start space-x-3">
+                      {book.cover_image_url ? (
+                        <Image
+                          src={book.cover_image_url}
+                          alt={`Cover of ${book.title}`}
+                          width={48}
+                          height={72}
+                          className="rounded shadow-md flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-[72px] bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                          <span className="text-xl text-gray-400">📚</span>
+                        </div>
+                      )}
+                      <div className="pt-1">
+                        <div 
+                          className="font-semibold text-gray-900 hover:text-blue-600 cursor-pointer"
+                          onClick={() => onEditHandler(book)}
+                        >
+                          {book.title}
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4">{book.author}</td>
+                  <td className="px-4 py-3 text-sm text-blue-600 align-top pt-4">{getSeriesNameForBook(book.series_id) || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4">{book.publication_year || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-gray-600 align-top pt-4 font-medium">{book.rating !== null ? `${book.rating} / 10` : '—'}</td>
+                  <td className="px-4 py-3 align-top pt-4">
+                    <button
+                      onClick={() => onDeleteHandler(book.id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium transition-colors duration-200"
+                    >
+                      Remove
+                    </button>
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  </div>
-);
-const MemoizedBookshelf = React.memo(ActualBookshelf);
+  );
+};
 
 // Edit Book Modal Component
 interface EditBookModalProps {
@@ -227,12 +214,14 @@ const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, on
   const [rating, setRating] = useState<number | null>(null);
   const [comments, setComments] = useState<string | null>(null);
   const [bookType, setBookType] = useState<'book' | 'audiobook' | null>(null);
+  const [status, setStatus] = useState<Book['status']>('planning');
 
   useEffect(() => {
     if (book) {
       setRating(book.rating);
       setComments(book.comments);
       setBookType(book.book_type);
+      setStatus(book.status);
     }
   }, [book]);
 
@@ -244,6 +233,7 @@ const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, on
       rating,
       comments,
       book_type: bookType,
+      status,
     });
   };
 
@@ -252,6 +242,23 @@ const EditBookModal: React.FC<EditBookModalProps> = ({ book, isOpen, onClose, on
       <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md">
         <h2 className="text-2xl font-semibold mb-4 text-gray-800">Edit: {book.title}</h2>
         
+        {/* Status */}
+        <div className="mb-4">
+          <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+          <select
+            id="status"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            value={status}
+            onChange={(e) => setStatus(e.target.value as Book['status'])}
+          >
+            {Object.entries(statusMapping).map(([apiStatus, displayStatus]) => (
+              <option key={apiStatus} value={apiStatus}>{displayStatus}</option>
+            ))}
+            <option value="on_hold">On Hold</option>
+            <option value="dropped">Dropped</option>
+          </select>
+        </div>
+
         {/* Rating */}
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">Rating (1-10)</label>
@@ -329,8 +336,7 @@ export default function Home() {
   const [books, setBooks] = useState<Book[]>([]);
   const [series, setSeries] = useState<Series[]>([]);
   const [loading, setLoading] = useState(true);
-  const [draggedBook, setDraggedBook] = useState<Book | null>(null);
-
+  
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Book[]>([]);
@@ -366,29 +372,6 @@ export default function Home() {
     }
   };
 
-  const memoizedUpdateBookStatus = useCallback(async (bookId: number, newStatus: string) => {
-    try {
-      const response = await fetch(`/api/v1/books/${bookId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: newStatus }),
-      });
-
-      if (response.ok) {
-        const updatedBook = await response.json();
-        setBooks(prevBooks => 
-          prevBooks.map(book => 
-            book.id === bookId ? updatedBook : book
-          )
-        );
-      }
-    } catch (error) {
-      console.error('Error updating book status:', error);
-    }
-  }, []);
-
   const memoizedDeleteBook = useCallback(async (bookId: number) => {
     if (!confirm('Are you sure you want to delete this book?')) {
       return;
@@ -406,31 +389,6 @@ export default function Home() {
       console.error('Error deleting book:', error);
     }
   }, []);
-
-  const memoizedHandleDragStart = useCallback((e: React.DragEvent, book: Book) => {
-    setDraggedBook(book);
-    if (e.dataTransfer) {
-      e.dataTransfer.effectAllowed = 'move';
-    }
-  }, []);
-
-  const memoizedHandleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    if (e.dataTransfer) {
-      e.dataTransfer.dropEffect = 'move';
-    }
-  }, []);
-
-  const memoizedHandleDrop = useCallback((e: React.DragEvent, newShelf: string) => {
-    e.preventDefault();
-    if (draggedBook) {
-      const newStatus = reverseStatusMapping[newShelf as keyof typeof reverseStatusMapping];
-      if (newStatus && draggedBook.status !== newStatus) {
-        memoizedUpdateBookStatus(draggedBook.id, newStatus);
-      }
-      setDraggedBook(null);
-    }
-  }, [draggedBook, memoizedUpdateBookStatus]);
 
   const memoizedGetSeriesName = useCallback((seriesId: number | null) => {
     if (!seriesId) return null;
@@ -548,7 +506,7 @@ export default function Home() {
             📚 My Bookshelf
           </h1>
           <p className="text-gray-600">
-            Organize your reading journey • Drag books between shelves
+            A sortable and editable library of your books.
           </p>
         </header>
 
@@ -649,24 +607,20 @@ export default function Home() {
         )}
 
         {/* Main Bookshelves */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {Object.keys(statusMapping).map((status) => {
-            const shelfTitle = statusMapping[status as keyof typeof statusMapping];
-            const shelfBooks = getBooksByStatus(shelfTitle);
-            return (
-              <MemoizedBookshelf
-                key={status}
-                title={shelfTitle}
-                shelfBooks={shelfBooks}
-                onDragOverHandler={memoizedHandleDragOver}
-                onDropHandler={memoizedHandleDrop}
-                onBookDragStartHandler={memoizedHandleDragStart}
-                onBookDeleteHandler={memoizedDeleteBook}
-                getSeriesNameForBook={memoizedGetSeriesName}
-                onEditHandler={handleEditBook}
-              />
-            );
-          })}
+        <div className="space-y-12">
+          {(['Currently Reading', 'Want to Read', 'Read'] as const).map((shelfTitle) => {
+              const shelfBooks = getBooksByStatus(shelfTitle);
+              return (
+                <BookshelfTable
+                  key={shelfTitle}
+                  title={shelfTitle}
+                  books={shelfBooks}
+                  onDeleteHandler={memoizedDeleteBook}
+                  getSeriesNameForBook={memoizedGetSeriesName}
+                  onEditHandler={handleEditBook}
+                />
+              );
+            })}
         </div>
 
         {books.length === 0 && (
